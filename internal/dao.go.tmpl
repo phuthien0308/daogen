@@ -1,0 +1,57 @@
+package {{ .OutputPackage }}
+
+{{- $g := .Imports.Group }}
+
+{{- if or $g.Std $g.Ext }}
+import (
+    {{- range $g.Std }}
+    "{{ . }}"
+    {{- end }}
+
+    {{- if and $g.Std $g.Ext }}
+    // external imports
+    {{- end }}
+
+    {{- range $g.Ext }}
+    {{ . }}
+    {{- end }}
+)
+{{- end }}
+
+// -----------------------------------------------------------------
+// 1. DAO Interface (The Contract)
+// -----------------------------------------------------------------
+
+// {{.Type}}DAO defines the methods for interacting with {{.Type}} data in the database.
+type {{.Type}}DAO interface {
+	Create(ctx context.Context, {{.TypeLower}} {{- if .IsIncludedPkgModelName }} *dto.{{.Type}} {{ else }}  *{{.Type}} {{- end }}) (int64, error)	
+}
+
+// -----------------------------------------------------------------
+// 2. Concrete Implementation Struct
+// -----------------------------------------------------------------
+
+// {{.TypeLower}}DAOImpl holds the database connection and implements the {{.Type}}DAO interface.
+type {{.TypeLower}}DAOImpl struct {
+	db *sql.DB
+}
+
+// New{{.Type}}DAO creates and returns a new {{.Type}}DAO implementation.
+func New{{.Type}}DAO(db *sql.DB) {{.Type}}DAO {
+	return &{{.TypeLower}}DAOImpl{db: db}
+}
+
+// Create inserts a new {{.TypeLower}} record into the database.
+func (dao *{{.TypeLower}}DAOImpl) Create(ctx context.Context, {{.TypeLower}} {{- if .IsIncludedPkgModelName }} *dto.{{.Type}} {{ else }}  *{{.Type}} {{- end }}) (int64,error) {
+	// WARNING: You must adjust the number of $N placeholders and fields in .Scan()
+	query := "{{.InsertQuery}}"
+	
+	// Example: .Scan(&{{.TypeLower}}.ID, &{{.TypeLower}}.Field1, &{{.TypeLower}}.Field2)
+    
+	result,err := dao.db.ExecContext(ctx, query, {{ range $i, $f := .InsertFields }}{{ if $i }}, {{ end }}{{ $.TypeLower }}.{{ $f }}{{ end }})
+	
+	if err != nil {
+		return 0, fmt.Errorf("error creating {{.TypeLower}}: %w", err)
+	}
+	return result.LastInsertId()
+}
